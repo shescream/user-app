@@ -1,6 +1,12 @@
-import { Audio } from "expo-av";
-import * as Location from "expo-location";
+import {
+  AudioModule,
+  RecordingPresets,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from "expo-audio";
 import { Accelerometer, Gyroscope } from "expo-sensors";
+import { useRef } from "react";
 
 type MotionSample = {
   t: number;
@@ -12,75 +18,87 @@ type MotionSample = {
   gz: number;
 };
 
-const SAMPLE_INTERVAL_MS = 50; // 20 Hz
-const BATCH_SIZE = 100;
-const MAX_BUFFER = 300;
-const MIN_AUDIO_MS = 1000; // critical
-
-let running = false;
-let sending = false;
-
 let accelSub: any = null;
 let gyroSub: any = null;
 
+const SAMPLE_INTERVAL_MS = 50; // 20 Hz
+const BATCH_SIZE = 100;
+const MAX_BUFFER = 300;
+
 let buffer: MotionSample[] = [];
 
-/* ---------- AUDIO ---------- */
+let startImpl: (() => Promise<void>) | null = null;
+let stopImpl: (() => Promise<void>) | null = null;
 
-let recording: Audio.Recording | null = null;
-let audioStartTime = 0;
-
-async function startAudio() {
-  await Audio.requestPermissionsAsync();
-
-  recording = new Audio.Recording();
-  await recording.prepareToRecordAsync(
-    Audio.RecordingOptionsPresets.HIGH_QUALITY
-  );
-
-  await recording.startAsync();
-  audioStartTime = Date.now();
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function stopAudio(): Promise<string | null> {
-  if (!recording) return null;
+function sendData(audioURI: string | null) {
+  if (!audioURI) return;
+  const batch = buffer.slice(0, BATCH_SIZE);
+  buffer = buffer.slice(BATCH_SIZE);
 
-  const elapsed = Date.now() - audioStartTime;
+  const form = new FormData();
+  let timenow = Date.now();
+  form.append("timestamp", timenow.toString());
+  form.append("samples", JSON.stringify(batch));
+  form.append("audio", {
+    uri: audioURI,
+    name: "panic.m4a",
+    type: "audio/mp4",
+  } as any);
 
-  // Guard: audio not ready
-  if (elapsed < MIN_AUDIO_MS) {
-    try {
-      await recording.stopAndUnloadAsync();
-    } catch {}
-    recording = null;
-    return null;
-  }
-
-  try {
-    await recording.stopAndUnloadAsync();
-    const uri = recording.getURI();
-    recording = null;
-    return uri;
-  } catch {
-    recording = null;
-    return null;
-  }
+  fetch("http://boxer.246897.xyz/panic", {
+    method: "POST",
+    body: form,
+  })
+    .then(() => console.log(`data sent at ${timenow}`))
+    .catch(() => {
+      console.log("couldn't send");
+    });
 }
 
-/* ---------- CORE ---------- */
+export function PanicProvider() {
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(recorder);
 
-export async function startPanic() {
-  if (running) return;
-  running = true;
+  const running = useRef(false);
 
-  const loc = await Location.requestForegroundPermissionsAsync();
-  if (loc.status !== "granted") return;
+  const startPanic = async () => {
+    if (running.current) return;
+    running.current = true;
 
-  await startAudio();
+    const status = await AudioModule.requestRecordingPermissionsAsync();
+    if (!status.granted) {
+      running.current = false;
+      return;
+    }
 
+    await setAudioModeAsync({
+      playsInSilentMode: true,
+      allowsRecording: true,
+    });
+
+    while (running.current) {
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+
+      await sleep(5000);
+
+      await recorder.stop();
+      sendData(recorder.uri);
+    }
+  };
+
+  const stopPanic = async () => {
+    running.current = false;
+    // if (recorderState.isRecording) {
+    //   await recorder.stop();
+    // }
+  };
   Accelerometer.setUpdateInterval(SAMPLE_INTERVAL_MS);
   Gyroscope.setUpdateInterval(SAMPLE_INTERVAL_MS);
-
   accelSub = Accelerometer.addListener((accel) => {
     if (!running) return;
 
@@ -102,7 +120,6 @@ export async function startPanic() {
       flushBuffer();
     }
   });
-
   gyroSub = Gyroscope.addListener((gyro) => {
     if (!running || buffer.length === 0) return;
 
@@ -111,66 +128,25 @@ export async function startPanic() {
     last.gy = gyro.y;
     last.gz = gyro.z;
   });
+
+  startImpl = startPanic;
+  stopImpl = stopPanic;
+
+  return null;
 }
 
-async function flushBuffer() {
-  if (sending) return;
-
-  // Guard: audio not yet valid
-  if (Date.now() - audioStartTime < MIN_AUDIO_MS) {
-    return;
+export async function startPanic() {
+  if (!startImpl) {
+    throw new Error("PanicProvider not mounted");
   }
-
-  sending = true;
-
-  const batch = buffer.slice(0, BATCH_SIZE);
-  buffer = buffer.slice(BATCH_SIZE);
-
-  const audioUri = await stopAudio();
-
-  try {
-    const location = await Location.getCurrentPositionAsync({});
-
-    const form = new FormData();
-    form.append("timestamp", Date.now().toString());
-    form.append("latitude", location.coords.latitude.toString());
-    form.append("longitude", location.coords.longitude.toString());
-    form.append("samples", JSON.stringify(batch));
-
-    if (audioUri) {
-      form.append("audio", {
-        uri: audioUri,
-        name: "panic.m4a",
-        type: "audio/mp4",
-      } as any);
-    }
-
-    await fetch("http://boxer.246897.xyz/panic", {
-      method: "POST",
-      body: form,
-    });
-  } catch (e) {
-    console.log("panic send failed", e);
-  } finally {
-    sending = false;
-
-    if (running) {
-      await startAudio(); // next window
-    }
-  }
+  startImpl();
 }
 
 export async function stopPanic() {
-  running = false;
+  if (!stopImpl) return;
+  await stopImpl();
+}
 
-  accelSub?.remove();
-  gyroSub?.remove();
-
-  accelSub = null;
-  gyroSub = null;
-
-  buffer = [];
-  sending = false;
-
-  await stopAudio();
+async function flushBuffer() {
+  buffer = buffer.slice(BATCH_SIZE);
 }
