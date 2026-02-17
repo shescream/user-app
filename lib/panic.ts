@@ -21,7 +21,7 @@ type MotionSample = {
 let accelSub: any = null;
 let gyroSub: any = null;
 
-const SAMPLE_INTERVAL_MS = 50; // 20 Hz
+const SAMPLE_INTERVAL_MS = 1; // 20 Hz
 const BATCH_SIZE = 100;
 const MAX_BUFFER = 300;
 
