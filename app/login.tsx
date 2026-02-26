@@ -71,7 +71,7 @@ export default function Login() {
         return;
       }
 
-      await SecureStore.setItemAsync("jwt", data.token);
+      SecureStore.setItemAsync("jwt", data.token);
       router.replace("/");
     } catch (err) {
       console.log("network error", err);
@@ -79,7 +79,7 @@ export default function Login() {
   };
 
   const signup = async () => {
-    router.replace("/");
+    router.replace("/signup");
   };
 
   return (
