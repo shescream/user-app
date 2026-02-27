@@ -7,6 +7,10 @@ import {
 } from "expo-audio";
 import { Accelerometer, Gyroscope } from "expo-sensors";
 import { useRef } from "react";
+import * as SecureStore from "expo-secure-store";
+
+const token = SecureStore.getItem("jwt");
+const URL = "http://bounding.246897.xyz"
 
 type MotionSample = {
   t: number;
@@ -49,9 +53,12 @@ function sendData(audioURI: string | null) {
     type: "audio/mp4",
   } as any);
 
-  fetch("http://boxer.246897.xyz/panic", {
+  fetch(`${URL}/panic`, {
     method: "POST",
     body: form,
+    headers:{
+      "Authorization": `Bearer ${token}`
+    }
   })
     .then(() => console.log(`data sent at ${timenow}`))
     .catch(() => {

@@ -3,6 +3,8 @@ import { useState } from "react";
 import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 
+const URL = "http://bounding.246897.xyz"
+
 export default function Signup() {
   const [username, setUsername] = useState("");
   const [password1, setPassword1] = useState("");
@@ -22,7 +24,7 @@ export default function Signup() {
       alert("fill all the fields");
       return;
     }
-    fetch("http://bounding.246897.xyz/signup",{
+    fetch(`${URL}/signup`,{
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username:username, password:password1 })

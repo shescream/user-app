@@ -3,6 +3,8 @@ import { useState } from "react";
 import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 
+const URL = "http://bounding.246897.xyz"
+
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -10,7 +12,7 @@ export default function Login() {
 
   function checkConnectivity() {
     return new Promise((resolve, reject) => {
-      fetch("http://bounding.246897.xyz/ping", {
+      fetch(`${URL}/ping`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -39,7 +41,7 @@ export default function Login() {
     if (token) {
       var passed = false;
       // validate token
-      fetch("http://bounding.246897.xyz/whoami", {
+      fetch(`${URL}/whoami`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -59,7 +61,7 @@ export default function Login() {
     }
 
     try {
-      const res = await fetch("http://bounding.246897.xyz/login", {
+      const res = await fetch(`${URL}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
