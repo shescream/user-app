@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 
-const URL = "http://bounding.246897.xyz"
+const URL = "https://api.246897.xyz"
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -64,7 +64,7 @@ export default function Login() {
       const res = await fetch(`${URL}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username:username.trim(), password:password.trim() }),
       });
       const data = await res.json();
 

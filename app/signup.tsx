@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 
-const URL = "http://bounding.246897.xyz"
+const URL = "https://api.246897.xyz"
 
 export default function Signup() {
   const [username, setUsername] = useState("");
@@ -12,7 +12,7 @@ export default function Signup() {
   const router = useRouter();
 
   const handleSignup = async () => {
-    if (password1 != password2) {
+    if (password1.trim() != password2.trim()) {
       alert("password1 and password2 mismatch");
       return;
     }
@@ -27,12 +27,12 @@ export default function Signup() {
     fetch(`${URL}/signup`,{
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username:username, password:password1 })
+        body: JSON.stringify({ username:username.trim(), password:password1.trim()})
     })
     .then(res => res.json())
     .then(data =>{
         if(data.token){
-            SecureStore.setItemAsync("jwt", data.token);
+            SecureStore.setItem("jwt", data.token);
             alert("registed successfully");
             router.replace("/")
         }

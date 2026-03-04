@@ -8,9 +8,10 @@ import {
 import { Accelerometer, Gyroscope } from "expo-sensors";
 import { useRef } from "react";
 import * as SecureStore from "expo-secure-store";
+import * as Location from "expo-location";
 
 const token = SecureStore.getItem("jwt");
-const URL = "http://bounding.246897.xyz"
+const URL = "https://api.246897.xyz"
 
 type MotionSample = {
   t: number;
@@ -25,6 +26,9 @@ type MotionSample = {
 let accelSub: any = null;
 let gyroSub: any = null;
 
+let currentLocation: { latitude: number; longitude: number } | null = null;
+let locationPromise: Promise<void> | null = null;
+
 const SAMPLE_INTERVAL_MS = 1; // 20 Hz
 const BATCH_SIZE = 100;
 const MAX_BUFFER = 300;
@@ -38,6 +42,18 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function fetchLocation() {
+  try {
+    const location = await Location.getCurrentPositionAsync({});
+    currentLocation = {
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
+    };
+  } catch (error) {
+    console.log("couldn't get location", error);
+  }
+}
+
 function sendData(audioURI: string | null) {
   if (!audioURI) return;
   const batch = buffer.slice(0, BATCH_SIZE);
@@ -47,6 +63,10 @@ function sendData(audioURI: string | null) {
   let timenow = Date.now();
   form.append("timestamp", timenow.toString());
   form.append("samples", JSON.stringify(batch));
+  if (currentLocation) {
+    form.append("latitude", currentLocation.latitude.toString());
+    form.append("longitude", currentLocation.longitude.toString());
+  }
   form.append("audio", {
     uri: audioURI,
     name: "panic.m4a",
@@ -82,6 +102,12 @@ export function PanicProvider() {
       return;
     }
 
+    const locationStatus = await Location.requestForegroundPermissionsAsync();
+    if (!locationStatus.granted) {
+      running.current = false;
+      return;
+    }
+
     await setAudioModeAsync({
       playsInSilentMode: true,
       allowsRecording: true,
@@ -91,9 +117,18 @@ export function PanicProvider() {
       await recorder.prepareToRecordAsync();
       recorder.record();
 
+      // Start fetching location asynchronously
+      locationPromise = fetchLocation();
+
       await sleep(5000);
 
       await recorder.stop();
+      
+      // Wait for location to be fetched before sending
+      if (locationPromise) {
+        await locationPromise;
+      }
+      
       sendData(recorder.uri);
     }
   };
