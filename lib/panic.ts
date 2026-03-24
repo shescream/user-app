@@ -11,7 +11,7 @@ import * as SecureStore from "expo-secure-store";
 import * as Location from "expo-location";
 
 const token = SecureStore.getItem("jwt");
-const URL = "https://api.246897.xyz"
+const URL = "https://api.246897.xyz";
 
 type MotionSample = {
   t: number;
@@ -63,10 +63,6 @@ function sendData(audioURI: string | null) {
   let timenow = Date.now();
   form.append("timestamp", timenow.toString());
   form.append("samples", JSON.stringify(batch));
-  if (currentLocation) {
-    form.append("latitude", currentLocation.latitude.toString());
-    form.append("longitude", currentLocation.longitude.toString());
-  }
   form.append("audio", {
     uri: audioURI,
     name: "panic.m4a",
@@ -76,14 +72,29 @@ function sendData(audioURI: string | null) {
   fetch(`${URL}/panic`, {
     method: "POST",
     body: form,
-    headers:{
-      "Authorization": `Bearer ${token}`
-    }
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
   })
     .then(() => console.log(`data sent at ${timenow}`))
     .catch(() => {
       console.log("couldn't send");
     });
+}
+
+async function sendLoc() {
+  const form = new FormData();
+  if (currentLocation) {
+    form.append("latitude", currentLocation.latitude.toString());
+    form.append("longitude", currentLocation.longitude.toString());
+  }
+  fetch(`${URL}/panic/loc`, {
+    method: "POST",
+    body: form,
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
 }
 
 export function PanicProvider() {
@@ -123,13 +134,14 @@ export function PanicProvider() {
       await sleep(5000);
 
       await recorder.stop();
-      
+
       // Wait for location to be fetched before sending
       if (locationPromise) {
         await locationPromise;
       }
-      
+
       sendData(recorder.uri);
+      sendLoc();
     }
   };
 
