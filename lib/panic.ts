@@ -69,7 +69,7 @@ function sendData(audioURI: string | null) {
     type: "audio/mp4",
   } as any);
 
-  fetch(`${URL}/panic`, {
+  fetch(`${URL}/panic/data`, {
     method: "POST",
     body: form,
     headers: {
@@ -83,17 +83,16 @@ function sendData(audioURI: string | null) {
 }
 
 async function sendLoc() {
-  const form = new FormData();
-  if (currentLocation) {
-    form.append("latitude", currentLocation.latitude.toString());
-    form.append("longitude", currentLocation.longitude.toString());
-  }
   fetch(`${URL}/panic/loc`, {
     method: "POST",
-    body: form,
     headers: {
+      "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
+    body: JSON.stringify({
+      latitude: currentLocation?.latitude.toString(),
+      longitude: currentLocation?.longitude.toString(),
+    }),
   });
 }
 
